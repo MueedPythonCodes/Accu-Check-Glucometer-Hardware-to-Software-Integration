@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accu-Chek Python Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-6">
+
+    <div class="max-w-3xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center border-b border-gray-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-green-400">Accu-Chek Python Hub</h1>
+                <p class="text-gray-400 text-sm">Backend Automation & Auto-Sync</p>
+            </div>
+            <div id="statusIndicator" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-300">
+                Waiting for Python...
+            </div>
+        </div>
+
+        <!-- Latest Reading -->
+        <div id="latestReadingCard" class="hidden bg-gradient-to-r from-green-900 to-gray-800 p-6 rounded-xl border border-green-700 text-center shadow-2xl">
+            <div class="text-gray-400 text-sm uppercase tracking-widest mb-1">Latest Reading</div>
+            <div class="flex justify-center items-baseline gap-2">
+                <span id="displayVal" class="text-5xl font-mono font-bold text-white">---</span>
+                <span class="text-xl text-green-300">mg/dL</span>
+            </div>
+            <div id="displayDate" class="text-gray-400 text-sm mt-2">--</div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+            <div class="p-3 bg-gray-750 border-b border-gray-700 font-semibold text-gray-300">Readings Log (from CSV)</div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-gray-400">
+                    <thead class="bg-gray-900 uppercase text-xs">
+                        <tr>
+                            <th class="px-4 py-3">Time</th>
+                            <th class="px-4 py-3">mg/dL</th>
+                            <th class="px-4 py-3">mmol/L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="readingsTable" class="divide-y divide-gray-700">
+                        <!-- Rows will appear here -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="emptyState" class="p-6 text-center text-gray-500 italic">Waiting for data from Python backend...</div>
+        </div>
+
+        <!-- Logs -->
+        <div class="bg-black p-4 rounded-lg font-mono text-xs text-green-500 h-40 overflow-y-auto border border-gray-700 shadow-inner" id="consoleLog">
+            <div>> Web Interface Ready. Waiting for Server...</div>
+        </div>
+
+    </div>
+
+    <script>
+        let lastCount = 0;
+
+        function log(msg) {
+            const consoleDiv = document.getElementById('consoleLog');
+            const entry = document.createElement('div');
+            entry.innerText = `> ${msg}`;
+            consoleDiv.appendChild(entry);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        let lastTimestamp = ""; // Change this from lastCount
+
+async function fetchData() {
+    try {
+        const response = await fetch('/api/data');
+        const data = await response.json();
+        
+        // --- Update Status Indicator ---
+        const statusEl = document.getElementById('statusIndicator');
+        statusEl.innerText = data.status;
+        
+        if (data.status.includes("Scanning")) {
+            statusEl.className = "px-3 py-1 rounded-full text-xs font-semibold bg-purple-900 text-purple-200 animate-pulse";
+        } else if (data.status.includes("Connected")) {
+            statusEl.className = "px-3 py-1 rounded-full text-xs font-semibold bg-green-900 text-green-200";
+        } else {
+            statusEl.className = "px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-300";
+        }
+
+        // --- Update Readings ---
+        if (data.readings.length > 0) {
+            const latest = data.readings[data.readings.length - 1];
+
+            if (latest.timestamp !== lastTimestamp) {
+                updateTable(data.readings);
+                lastTimestamp = latest.timestamp; 
+                
+                document.getElementById('latestReadingCard').classList.remove('hidden');
+                document.getElementById('displayVal').innerText = latest.mgdl;
+                document.getElementById('displayDate').innerText = latest.timestamp;
+                
+                log(`New data received: ${latest.mgdl} mg/dL`);
+            }
+        }
+    } catch (error) {
+        document.getElementById('statusIndicator').innerText = "Backend Disconnected";
+        document.getElementById('statusIndicator').className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-900 text-red-200";
+    }
+}
+
+        function updateTable(readings) {
+            const tbody = document.getElementById('readingsTable');
+            tbody.innerHTML = ''; // Clear current
+            
+            // Reverse loop for newest first
+            for (let i = readings.length - 1; i >= 0; i--) {
+                const r = readings[i];
+                const row = document.createElement('tr');
+                row.className = "hover:bg-gray-750 transition";
+                row.innerHTML = `
+                    <td class="px-4 py-3 border-t border-gray-700 whitespace-nowrap">${r.timestamp}</td>
+                    <td class="px-4 py-3 border-t border-gray-700 font-bold text-green-400">${r.mgdl}</td>
+                    <td class="px-4 py-3 border-t border-gray-700 text-gray-400">${r.mmol}</td>
+                `;
+                tbody.appendChild(row);
+            }
+            
+            if (readings.length > 0) document.getElementById('emptyState').style.display = 'none';
+        }
+
+        // Poll backend every 1 second
+        setInterval(fetchData, 1000);
+        fetchData(); // Initial call
+    </script>
+</body>
+</html>
