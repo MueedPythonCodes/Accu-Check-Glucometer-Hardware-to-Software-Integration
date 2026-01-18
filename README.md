@@ -1,0 +1,1 @@
+This Project is made to connect Glucometer automatically with my system, saving the reading in a csv file in our system's local storage and then displaying it on the Browser. All of this is done using Python and Flask.
